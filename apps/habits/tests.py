@@ -41,6 +41,11 @@ def habit_url():
 
 
 @pytest.fixture
+def habit_dashboard_url():
+    return reverse('habits:habit-dashboard')
+
+
+@pytest.fixture
 def goal_url():
     return reverse('habits:goal-list')
 
@@ -117,6 +122,36 @@ class TestHabitAPI:
 
         assert response.status_code == 204
         assert not Habit.objects.filter(id=test_habit.id).exists()
+
+    def test_dashboard_habit_without_goal_and_log(
+        self, authenticated_api_client, test_habit, habit_dashboard_url
+    ):
+        response = authenticated_api_client.get(habit_dashboard_url)
+
+        assert response.status_code == 200
+        assert len(response.data) == 1
+        assert response.data[0]['current_goal'] is None
+        assert response.data[0]['today_log'] is None
+
+    def test_dashboard_habit_with_goal_and_without_log(
+        self, authenticated_api_client, test_habit, test_goal, habit_dashboard_url
+    ):
+        response = authenticated_api_client.get(habit_dashboard_url)
+
+        assert response.status_code == 200
+        assert len(response.data) == 1
+        assert response.data[0]['current_goal']['id'] == test_goal.id
+        assert response.data[0]['today_log'] is None
+
+    def test_dashboard_habit_without_goal_and_with_log(
+        self, authenticated_api_client, test_habit, test_habit_log, habit_dashboard_url
+    ):
+        response = authenticated_api_client.get(habit_dashboard_url)
+
+        assert response.status_code == 200
+        assert len(response.data) == 1
+        assert response.data[0]['current_goal'] is None
+        assert response.data[0]['today_log']['id'] == test_habit_log.id
 
 
 @pytest.mark.django_db

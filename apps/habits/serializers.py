@@ -78,3 +78,44 @@ class HabitLogSerializer(serializers.ModelSerializer):
                 })
 
         return data
+
+
+class GoalCompactSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Goal
+        fields = ['id', 'current_streak', 'status', 'target_streak']
+
+
+class HabitLogCompactSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HabitLog
+        fields = ['id', 'completed_at']
+
+
+class HabitDashboardSerializer(serializers.ModelSerializer):
+    current_goal = serializers.SerializerMethodField()
+    today_log = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Habit
+        fields = ['id', 'name', 'frequency', 'current_goal', 'today_log']
+
+    def get_current_goal(self, habit):
+        goal = Goal.objects.filter(habit=habit, status='in_progress').first()
+        return GoalCompactSerializer(goal).data if goal else None
+
+    def get_today_log(self, habit):
+        now = timezone.now()
+
+        if habit.frequency == 'daily':
+            log = habit.logs.filter(completed_at__date=now.date()).first()
+            return HabitLogCompactSerializer(log).data if log else None
+
+        elif habit.frequency == 'monthly':
+            log = habit.logs.filter(
+                completed_at__year=now.year,
+                completed_at__month=now.month
+            ).first()
+            return HabitLogCompactSerializer(log).data if log else None
+
+        return None

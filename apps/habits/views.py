@@ -1,6 +1,11 @@
 from rest_framework import viewsets, generics
+from rest_framework.decorators import action
+from rest_framework.response import Response
 from .models import Habit, Goal, HabitLog
-from .serializers import HabitSerializer, GoalSerializer, HabitLogSerializer
+from .serializers import (
+    HabitSerializer, GoalSerializer,
+    HabitLogSerializer, HabitDashboardSerializer
+)
 
 
 class HabitViewSet(viewsets.ModelViewSet):
@@ -12,6 +17,12 @@ class HabitViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+    @action(detail=False, methods=['get'])
+    def dashboard(self, request):
+        habits = self.get_queryset()
+        serializer = HabitDashboardSerializer(habits, many=True)
+        return Response(serializer.data)
 
 
 class GoalViewSet(viewsets.ModelViewSet):
