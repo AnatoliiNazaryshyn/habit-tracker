@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from pathlib import Path
 import os
 from datetime import timedelta
+from celery.schedules import crontab
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -176,3 +177,9 @@ CELERY_TIMEZONE = os.getenv('CELERY_TIMEZONE')
 
 # Django Celery Beat settings
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+CELERY_BEAT_SCHEDULE = {
+    'reset-inactive-habit-streaks': {
+        'task': 'apps.habits.tasks.reset_streaks_for_inactive_habits',
+        'schedule': crontab(minute='1', hour='0'),
+    },
+}
