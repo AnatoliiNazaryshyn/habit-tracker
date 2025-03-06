@@ -178,6 +178,10 @@ CELERY_TIMEZONE = os.getenv('CELERY_TIMEZONE')
 # Django Celery Beat settings
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 CELERY_BEAT_SCHEDULE = {
+    'send-daily-reminders': {
+        'task': 'apps.habits.tasks.send_daily_reminders',
+        'schedule': crontab(minute='*'),
+    },
     'reset-inactive-habit-streaks': {
         'task': 'apps.habits.tasks.reset_streaks_for_inactive_habits',
         'schedule': crontab(minute='1', hour='0'),
