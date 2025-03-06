@@ -32,3 +32,11 @@ class Goal(models.Model):
 
     def __str__(self):
         return f"{self.habit.name} - Goal: {self.current_streak} out of {self.target_streak}"
+
+
+class Reminder(models.Model):
+    habit = models.OneToOneField(Habit, on_delete=models.CASCADE, related_name='reminder')
+    reminder_time = models.TimeField()
+
+    def __str__(self):
+        return f"Reminder on {self.habit.name} at {self.reminder_time}"
