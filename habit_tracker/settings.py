@@ -183,3 +183,7 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(minute='1', hour='0'),
     },
 }
+
+
+SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL')
