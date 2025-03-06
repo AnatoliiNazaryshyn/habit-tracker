@@ -39,6 +39,28 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+
+  celery:
+    build:
+      context: .
+      dockerfile: docker/celery/Dockerfile
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - redis
+
+  celery-beat:
+    container_name: celery-beat
+    build:
+      context: .
+      dockerfile: docker/celery/Dockerfile
+    command: celery -A habit_tracker beat --loglevel=info
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - redis
   
 volumes:
   postgres_data:
