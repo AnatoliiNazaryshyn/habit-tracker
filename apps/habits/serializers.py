@@ -6,8 +6,8 @@ from .models import Habit, Goal, HabitLog, Reminder
 class HabitSerializer(serializers.ModelSerializer):
     class Meta:
         model = Habit
-        fields = ['id', 'user', 'name', 'frequency', 'created_at']
-        read_only_fields = ['id', 'user', 'created_at']
+        fields = ['id', 'name', 'frequency', 'created_at']
+        read_only_fields = ['id', 'created_at']
 
 
 class GoalSerializer(serializers.ModelSerializer):
@@ -18,25 +18,25 @@ class GoalSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         habit = data.get('habit')
-        user = self.context['request'].user
 
-        if not habit:
-            habit = self.instance.habit
-
-        if habit.user != user:
+        if habit and self.context.get('request') and self.context['request'].user != habit.user:
             raise serializers.ValidationError({
                 'habit': 'You can only create goals for your own habits.'
             })
 
-        existing_goal = Goal.objects.filter(
-            habit=data.get('habit'),
-            status='in_progress'
-        ).exists()
+        if not habit and self.instance:
+            habit = self.instance.habit
 
-        if existing_goal:
-            raise serializers.ValidationError({
-                'habit': 'An in-progress goal already exists for this habit.'
-            })
+        if habit and (not self.instance or self.instance.status != 'in_progress'):
+            existing_goal = Goal.objects.filter(
+                habit=habit,
+                status='in_progress'
+            ).exists()
+
+            if existing_goal:
+                raise serializers.ValidationError({
+                    'habit': 'An in-progress goal already exists for this habit.'
+                })
 
         return data
 
@@ -49,33 +49,33 @@ class HabitLogSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         habit = data.get('habit')
-        user = self.context['request'].user
 
-        if habit.user != user:
+        if habit and self.context.get('request') and self.context['request'].user != habit.user:
             raise serializers.ValidationError({
-                'habit': 'You can only create logs for your own habits.'
+                'habit': 'You can only logs your own habits.'
             })
 
-        now = timezone.now()
+        if habit:
+            now = timezone.now()
 
-        if habit.frequency == 'daily':
-            if HabitLog.objects.filter(
-                habit=habit,
-                completed_at__date=now.date()
-            ).exists():
-                raise serializers.ValidationError({
-                    'habit': 'You can only log daily habit once per day.'
-                })
+            frequency_validators = {
+                'daily': {
+                    'filter': {'habit': habit, 'completed_at__date': now.date()},
+                    'message': 'You can only log daily habit once per day.'
+                },
+                'monthly': {
+                    'filter': {
+                        'habit': habit,
+                        'completed_at__year': now.year,
+                        'completed_at__month': now.month
+                    },
+                    'message': 'You can only log monthly habit once per month.'
+                }
+            }
 
-        elif habit.frequency == 'monthly':
-            if HabitLog.objects.filter(
-                habit=habit,
-                completed_at__year=now.year,
-                completed_at__month=now.month
-            ).exists():
-                raise serializers.ValidationError({
-                    'habit': 'You can only log monthly habit once per month.'
-                })
+            validator = frequency_validators.get(habit.frequency)
+            if validator and HabitLog.objects.filter(**validator['filter']).exists():
+                raise serializers.ValidationError({'habit': validator['message']})
 
         return data
 
@@ -85,6 +85,11 @@ class ReminderSerializer(serializers.ModelSerializer):
         model = Reminder
         fields = ['id', 'habit', 'reminder_time']
         read_only_fields = ['id']
+
+    def validate_habit(self, value):
+        if self.context.get('request') and self.context['request'].user != value.user:
+            raise serializers.ValidationError('You can only create reminders for your own habits.')
+        return value
 
 
 class GoalCompactSerializer(serializers.ModelSerializer):
@@ -121,16 +126,18 @@ class HabitDashboardSerializer(serializers.ModelSerializer):
     def get_today_log(self, habit):
         now = timezone.now()
 
-        if habit.frequency == 'daily':
-            log = habit.logs.filter(completed_at__date=now.date()).first()
-            return HabitLogCompactSerializer(log).data if log else None
+        frequency_log_filters = {
+            'daily': {'completed_at__date': now.date()},
+            'monthly': {
+                'completed_at__year': now.year,
+                'completed_at__month': now.month
+            }
+        }
 
-        elif habit.frequency == 'monthly':
-            log = habit.logs.filter(
-                completed_at__year=now.year,
-                completed_at__month=now.month
-            ).first()
-            return HabitLogCompactSerializer(log).data if log else None
+        log_filter = frequency_log_filters.get(habit.frequency, {})
+        log = habit.logs.filter(**log_filter).first() if log_filter else None
+
+        return HabitLogCompactSerializer(log).data if log else None
 
     def get_reminder(self, habit):
         reminder = getattr(habit, 'reminder', None)

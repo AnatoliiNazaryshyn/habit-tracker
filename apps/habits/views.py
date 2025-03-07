@@ -19,8 +19,7 @@ class HabitViewSet(viewsets.ModelViewSet):
     serializer_class = HabitSerializer
 
     def get_queryset(self):
-        user = self.request.user
-        return Habit.objects.filter(user=user)
+        return Habit.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -51,8 +50,7 @@ class GoalViewSet(viewsets.ModelViewSet):
     serializer_class = GoalSerializer
 
     def get_queryset(self):
-        user = self.request.user
-        return Goal.objects.filter(habit__user=user)
+        return Goal.objects.filter(habit__user=self.request.user)
 
 
 class HabitLogListCreateView(generics.ListCreateAPIView):
