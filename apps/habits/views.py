@@ -1,10 +1,11 @@
 from rest_framework import viewsets, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import Habit, Goal, HabitLog
+from .models import Habit, Goal, HabitLog, Reminder
 from .serializers import (
     HabitSerializer, GoalSerializer,
-    HabitLogSerializer, HabitDashboardSerializer
+    HabitLogSerializer, HabitDashboardSerializer,
+    ReminderSerializer
 )
 
 
@@ -66,5 +67,18 @@ class HabitLogListCreateView(generics.ListCreateAPIView):
     serializer_class = HabitLogSerializer
 
     def get_queryset(self):
-        user = self.request.user
-        return HabitLog.objects.filter(habit__user=user)
+        return HabitLog.objects.filter(habit__user=self.request.user)
+
+
+class ReminderViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing reminders.
+
+    Provides CRUD operations for reminders and enforces business rules:
+    - Only one reminder allowed per habit
+    - Users can only create reminder for habits they own
+    """
+    serializer_class = ReminderSerializer
+
+    def get_queryset(self):
+        return Reminder.objects.filter(habit__user=self.request.user)

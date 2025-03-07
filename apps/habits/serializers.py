@@ -1,6 +1,6 @@
 from django.utils import timezone
 from rest_framework import serializers
-from .models import Habit, Goal, HabitLog
+from .models import Habit, Goal, HabitLog, Reminder
 
 
 class HabitSerializer(serializers.ModelSerializer):
@@ -80,6 +80,13 @@ class HabitLogSerializer(serializers.ModelSerializer):
         return data
 
 
+class ReminderSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Reminder
+        fields = ['id', 'habit', 'reminder_time']
+        read_only_fields = ['id']
+
+
 class GoalCompactSerializer(serializers.ModelSerializer):
     class Meta:
         model = Goal
@@ -92,13 +99,20 @@ class HabitLogCompactSerializer(serializers.ModelSerializer):
         fields = ['id', 'completed_at']
 
 
+class ReminderCompactSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Reminder
+        fields = ['id', 'reminder_time']
+
+
 class HabitDashboardSerializer(serializers.ModelSerializer):
     current_goal = serializers.SerializerMethodField()
     today_log = serializers.SerializerMethodField()
+    reminder = serializers.SerializerMethodField()
 
     class Meta:
         model = Habit
-        fields = ['id', 'name', 'frequency', 'current_goal', 'today_log']
+        fields = ['id', 'name', 'frequency', 'current_goal', 'today_log', 'reminder']
 
     def get_current_goal(self, habit):
         goal = Goal.objects.filter(habit=habit, status='in_progress').first()
@@ -118,4 +132,6 @@ class HabitDashboardSerializer(serializers.ModelSerializer):
             ).first()
             return HabitLogCompactSerializer(log).data if log else None
 
-        return None
+    def get_reminder(self, habit):
+        reminder = getattr(habit, 'reminder', None)
+        return ReminderCompactSerializer(reminder).data if reminder else None
