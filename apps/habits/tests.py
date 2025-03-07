@@ -2,7 +2,7 @@ import pytest
 from django.urls import reverse
 from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
-from apps.habits.models import Habit, Goal, HabitLog
+from apps.habits.models import Habit, Goal, HabitLog, Reminder
 
 
 @pytest.fixture
@@ -240,3 +240,120 @@ class TestHabitLogAPI:
         assert response.status_code == 200
         assert len(response.data) == 1
         assert response.data[0]['habit'] == test_habit_log.habit.id
+
+
+@pytest.fixture
+def other_user():
+    User = get_user_model()
+    return User.objects.create_user(
+        email='other_user@example.com',
+        password='other_password12345'
+    )
+
+
+@pytest.fixture
+def other_user_habit(other_user):
+    return Habit.objects.create(
+        user=other_user,
+        name='Other User Habit',
+        frequency='daily'
+    )
+
+
+@pytest.fixture
+def habit_reminder(test_habit):
+    return Reminder.objects.create(
+        habit=test_habit,
+        reminder_time='08:00:00'
+    )
+
+
+@pytest.fixture
+def reminder_url():
+    return reverse('habits:reminder-list')
+
+
+@pytest.fixture
+def test_monthly_habit(test_user):
+    return Habit.objects.create(
+        user=test_user,
+        name='Test monthly Habit',
+        frequency='monthly'
+    )
+
+
+@pytest.fixture
+def test_monthly_habit_log(test_monthly_habit):
+    return HabitLog.objects.create(
+        habit=test_monthly_habit
+    )
+
+
+@pytest.mark.django_db
+class TestAuthorization:
+    def test_goal_permission_for_other_user_habit(
+        self, authenticated_api_client, other_user_habit, goal_url
+    ):
+        data = {'habit': other_user_habit.id, 'target_streak': 10}
+        response = authenticated_api_client.post(goal_url, data)
+
+        assert response.status_code == 400
+
+    def test_reminder_permission_for_other_user_habit(
+        self, authenticated_api_client, reminder_url, other_user_habit,
+    ):
+        data = {'habit': other_user_habit.id, 'reminder_time': '08:00:00'}
+        response = authenticated_api_client.post(reminder_url, data)
+
+        assert response.status_code == 400
+
+    def test_log_permission_for_other_user_habit(
+        self, authenticated_api_client, habit_log_url, other_user_habit,
+    ):
+        data = {'habit': other_user_habit.id}
+        response = authenticated_api_client.post(habit_log_url, data)
+
+        assert response.status_code == 400
+
+
+@pytest.mark.django_db
+class TestValidation:
+    def test_one_goal_in_progress_per_habit(
+        self, authenticated_api_client, test_habit, test_goal, goal_url
+    ):
+        data = {'habit': test_habit.id, 'target_streak': 15}
+        response = authenticated_api_client.post(goal_url, data)
+
+        assert response.status_code == 400
+        assert 'habit' in response.data
+        assert response.data['habit'] == ['An in-progress goal already exists for this habit.']
+
+    def test_one_reminder_per_habit(
+        self, authenticated_api_client, test_habit, habit_reminder, reminder_url
+    ):
+        data = {'habit': test_habit.id, 'time': '09:00:00'}
+        response = authenticated_api_client.post(reminder_url, data)
+
+        assert response.status_code == 400
+        assert 'habit' in response.data
+        assert response.data['habit'] == ['reminder with this habit already exists.']
+
+    def test_one_log_per_day_if_daily(
+        self, authenticated_api_client, test_habit, test_habit_log, habit_log_url
+    ):
+        data = {'habit': test_habit.id}
+        response = authenticated_api_client.post(habit_log_url, data)
+
+        assert response.status_code == 400
+        assert 'habit' in response.data
+        assert response.data['habit'] == ['You can only log daily habit once per day.']
+
+    def test_one_log_per_month_if_monthly(
+        self, authenticated_api_client, test_monthly_habit, test_monthly_habit_log, habit_log_url
+    ):
+        data = {'habit': test_monthly_habit.id}
+        response = authenticated_api_client.post(habit_log_url, data)
+
+        assert response.status_code == 400
+        assert 'habit' in response.data
+        assert response.data['habit'] == ['You can only log monthly habit once per month.']
